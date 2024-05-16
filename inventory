@@ -1,0 +1,8 @@
+[tg_bot]
+bot_host ansible_host="{{inventory_bot_host}}" ansible_user="{{inventory.bot.user}}" ansible_password="{{inventory.bot.password}}"
+
+[db]
+db_host ansible_host="{{inventory_db_host}}" ansible_user="{{inventory_db_user}}" ansible_password="{{inventory_db_password}}"
+
+[db_repl]
+db_repl_host ansible_host="{{inventory_db_repl_host}}" ansible_user="{{inventory_db_repl_user}}" ansible_password="{{inventory_db_repl_password}}"

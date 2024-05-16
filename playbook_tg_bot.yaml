@@ -38,45 +38,96 @@
     become: yes
     tasks:
       - name: Сache update
-      apt:
-        update_cache: yes
+        apt:
+          update_cache: yes
 
       -name: install postgreSQL
-      apt:
-        name:
-          - postgresql
-          - postgresql-contrib
-        state: present
-        update_cache: true
+        apt:
+          name:
+            - postgresql
+            - postgresql-contrib
+          state: present
+          update_cache: true
 
 
   name: Configuration master server
   -hosts: db
     tasts:
-      - name: Find pg_hba.conf file
-      find:
-        paths:
-          - /etc/postgresql
-          - /var/lib/pgsql/data
-        patterns: 'pg_hba.conf'
+      - name: Find path to pg_hba.conf
+        command: psql -t -P format=unaligned -c 'show hba_file'
         register: pg_hba_path
 
       - name: Add content to pg_hba.conf
-      lineinfile:
-        path: "{{ pg_hba_path.files[0].path }}"
-        insertafter: EOF
-        state: present
-        create: yes
-        line: "{{ lookup('file', './pg_hba.conf') }}"
+        lineinfile:
+          path: "{{ pg_hba_path.files[0].path }}"
+          insertafter: EOF
+          state: present
+          create: yes
+          line: "{{ lookup('file', './pg_hba.conf') }}"
         become: yes
 
       - name: Create archive directory
-      ansible.builtin.file:
-        path: "{{archive_dir}}"
-        state: directory
-        owner: "{{DB_USER}}"
-        mode: 0750
-      become: yes
-      
+        ansible.builtin.file:
+          path: "{{archive_dir}}"
+          state: directory
+          owner: "{{DB_USER}}"
+          mode: 0750
+        become: yes
+
+      - name: Get path to postgresql.conf
+        command: su - postgres -c "psql -t -P format=unaligned -c 'show config_file'"
+        register: postgres_conf_path
+
+      - name: Setup postgresql.conf
+        ansible.builtin.blockinfile:
+          create: true
+          path: "{{pg_conf_path.stdout}}/postgresql.conf"
+          block: "{{ lookup('file', 'files/postgresql.conf.block') }}"
+        become: yes
+        
+      - name: Restart PostgreSQL  
+        service:
+          name: postgresql
+          state: restarted
+        become: yes
+
+      - name: Create PostgreSQL database
+        command: psql -U {{DB_USER}} -d {{DB_USER}} -c "CREATE DATABASE {{DB_DATABASE}}"
+        become: yes
+
+      - name: Create table Email
+        community.postgresql.postgresql_table:
+          table: email
+          db: "{{DB_DATABASE}}"
+          columns:
+           - id serial primary key
+           - email varchar(30) not null
+        become: yes
+
+      - name: Create table PhoneNumbers
+        community.postgresql.postgresql_table:
+          table: phonenumbers
+          db: "{{DB_DATABASE}}"
+          columns:
+           - id serial primary key
+           - phone varchar(20) not null
+        become: yes
+
+      - name: Password for db_user
+        community.postgresql.postgresql_user:
+          name: "{{DB_USER}}"
+          password: "{{DB_PASSWORD}}"
+        become: yes
+
+      - name: Create db_repl_user
+        community.postgresql.postgresql_user:
+          name: "{{DB_REPL_USER}}"
+          password: "{{DB_REPL_PASSWORD}}"
+          role_attr_flags: REPLICATION,LOGIN
+        become: yes
+
+      become_user: postgres
+
+
 
 

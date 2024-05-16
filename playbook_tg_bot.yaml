@@ -1,6 +1,13 @@
-- hosts: all
-  name: Installation and configuration tg bot
-- hosts: tg_bot
+  hosts: all
+  become: yes
+  tasks:
+    - name: Сache update
+      apt:
+        update_cache: yes
+
+
+- name: Installation and configuration tg bot
+  hosts: tg_bot
   become: yes
   tasks:
     - name: Clone repository Github from bot
@@ -33,14 +40,10 @@
         cmd: python3 /opt/bot/bot.py
 
 
-  name: Install postgresql on db and db_repl
-  -hosts: db,db_repl
+- name: Install postgresql on db and db_repl
+  hosts: db,db_repl
     become: yes
     tasks:
-      - name: Сache update
-        apt:
-          update_cache: yes
-
       -name: install postgreSQL
         apt:
           name:
@@ -50,8 +53,8 @@
           update_cache: true
 
 
-  name: Configuration master server
-  -hosts: db
+- name: Configuration master server
+  hosts: db
     tasts:
       - name: Find path to pg_hba.conf
         command: psql -t -P format=unaligned -c 'show hba_file'
@@ -128,6 +131,61 @@
 
       become_user: postgres
 
+- name: Configuration slave server
+  hosts: db_repl
+    tasks:
+      - name: Get path to postgresql.conf
+        command: su - postgres -c "psql -t -P format=unaligned -c 'show config_file'"
+        register: postgres_conf_path
+
+      - name: Configuration postgresql.conf
+        ansible.builtin.blockinfile:
+          create: true
+          path: "{{pg_conf_path.stdout}}/postgresql.conf"
+          block: | 
+            listen_addresses = 'localhost, {{inventory_db_repl_host}}'
+            port = {{DB_REPL_PORT}}
+        become: yes
+
+      - name: Stop PostgreSQL service
+        service:
+          name: postgresql
+          state: stopped
+        become: yes
+
+      - name: Get directory for backup
+        ansible.builtin.shell: "pg_lsclusters --json | jq '.[].pgdata' | awk '{gsub(/\"/, \"\", $1); print $1}'"
+        register: data_dir
+
+      - name: Clean up directory
+        ansible.builtin.file:
+          state: "{{item}}"
+          path: "{{data_dir.stdout}}"
+          owner: {{DB_USER}}
+          group: postgres
+          mode: 0750
+        with_items:
+          - absent
+          - directory
+        become: yes
+        become_user: root
+
+      - name: Execute pg_basebackup
+        ansible.builtin.command:
+          cmd: |
+            pg_basebackup -v -R
+              -h {{inventory.db.host}} -p {{DB_PORT}}
+              -U {{DB_REPL_USER}} -w -P
+              -D {{data_dir.stdout}}
+        become: yes
+        environment:
+          PGPASSWORD: "{{DB_REPL_PASSWORD}}"
+
+      - name: Start PostgreSQL service
+        service:
+          name: postgresql
+          state: started
+        become: yes
 
 
-
+      become_user: postgres

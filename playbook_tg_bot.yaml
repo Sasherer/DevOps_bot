@@ -1,7 +1,5 @@
-- hosts: all  
-  vars_files:
-    -  classified_as_secret.yaml
-
+- hosts: all
+  name: Installation and configuration tg bot
 - hosts: tg_bot
   become: yes
   tasks:
@@ -10,9 +8,11 @@
         repo: https://github.com/Sasherer/DevOps_bot/tree/main
         dst: /opt/bot
         forse: yes
+
     - name: Install Python requirements
       pip:
         requirements: /opt/tg-bot/requirements.txt
+
     - name: Bot environment
       ansible.builtin.copy:
         content: |
@@ -27,11 +27,56 @@
           DB_PORT={{DB_PORT}}
           DB_DATABASE={{DB_DATABASE}}
         dest: "opt/bot/.env"
+
     - name: bot start
       shell: 
         cmd: python3 /opt/bot/bot.py
 
-  -hosts: db
+
+  name: Install postgresql on db and db_repl
+  -hosts: db,db_repl
     become: yes
     tasks:
-      -name: 
+      - name: Сache update
+      apt:
+        update_cache: yes
+
+      -name: install postgreSQL
+      apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+        state: present
+        update_cache: true
+
+
+  name: Configuration master server
+  -hosts: db
+    tasts:
+      - name: Find pg_hba.conf file
+      find:
+        paths:
+          - /etc/postgresql
+          - /var/lib/pgsql/data
+        patterns: 'pg_hba.conf'
+        register: pg_hba_path
+
+      - name: Add content to pg_hba.conf
+      lineinfile:
+        path: "{{ pg_hba_path.files[0].path }}"
+        insertafter: EOF
+        state: present
+        create: yes
+        line: "{{ lookup('file', './pg_hba.conf') }}"
+        become: yes
+
+      - name: Create archive directory
+      ansible.builtin.file:
+        path: "{{archive_dir}}"
+        state: directory
+        owner: "{{DB_USER}}"
+        mode: 0750
+      become: yes
+      
+
+

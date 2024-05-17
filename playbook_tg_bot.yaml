@@ -1,11 +1,14 @@
 - hosts: all
   become: yes
+  vars_files:
+    - ./classified_as_secret.yaml
   tasks:
     - name: Cache update
       apt:
         update_cache: yes
 
-- hosts: tg_bot  
+
+- hosts: bot  
   become: yes
   tasks:
     - name: Clone repository Github from bot
@@ -81,7 +84,7 @@
       ansible.builtin.blockinfile:
         create: true
         path: "{{postgres_conf_path.stdout}}"
-        block: "{{ lookup('file', 'files/postgresql.conf.block') }}"
+        block: "{{ lookup('file', './postgresql.conf.block') }}"
       become: yes
       
     - name: Restart PostgreSQL  

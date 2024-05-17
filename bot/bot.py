@@ -104,6 +104,8 @@ def ssh_master_connect(update: Update, file_path):
     username = DB_USER
     password = DB_PASSWORD
 
+
+
     if host and username and password:
         # Устанавливаем SSH-соединение
         client = paramiko.SSHClient()
@@ -152,15 +154,6 @@ def db_connect(update: Update):
         return None, None
 
 
-
-
-
-
-
-
-
-
-
 def find_emailCommand(update: Update, context):
     update.message.reply_text('Введите текст для поиска Email адресов: ')
     return 'find_email'
@@ -192,8 +185,11 @@ def confirm_save_email(update: Update, context):
                     try:
                         with connection, cursor:
                             for email in context.user_data['email_list']:
-                                cursor.execute("INSERT INTO email (email) VALUES (%s);", (email,))
-                            connection.commit()
+                                try:
+                                    cursor.execute("INSERT INTO email (email) VALUES (%s);", (email,))
+                                except Exception as e:
+                                    pass
+                                connection.commit()                            
                             logging.info("Команда успешно выполнена")
                             update.message.reply_text('Email адреса успешно сохранены в БД.')
                     except (Exception, Error) as error:
@@ -207,17 +203,6 @@ def confirm_save_email(update: Update, context):
     else:
         update.message.reply_text('Email адреса не сохранены.')
     return ConversationHandler.END
-
-
-
-
-
-
-
-
-
-
-
 
 
 def findPhoneNumbersCommand(update: Update, context):
@@ -256,8 +241,11 @@ def confirm_save_number(update: Update, context):
                     try:
                         with connection, cursor:
                             for phone_number in context.user_data['phone_list']:
-                                cursor.execute("INSERT INTO phone_numbers (phone_numbers) VALUES (%s);", (phone_number,))
-                            connection.commit()
+                                try:
+                                    cursor.execute("INSERT INTO phone_numbers (phone_numbers) VALUES (%s);", (phone_number,))
+                                except Exception as e:
+                                    pass
+                                connection.commit()   
                             logging.info("Команда успешно выполнена")
                             update.message.reply_text('Номера телефонов успешно сохранены в БД.')
                     except (Exception, Error) as error:
@@ -295,8 +283,6 @@ def get_emails(update: Update, command):
     return None
 
 
-
-
 def get_phone_numbers(update: Update, command):
     connection, cursor = db_connect(update)
 
@@ -319,9 +305,6 @@ def get_phone_numbers(update: Update, command):
         update.message.reply_text("Ошибка подключения к базе данных")
 
 
-
-
-
 def get_repl_logs(update: Update, context):
     connection = psycopg2.connect( host=DB_HOST, port=DB_PORT, database=DB_DATABASE, user=DB_USER, password=DB_PASSWORD )
     cursor = connection.cursor()
@@ -341,7 +324,30 @@ def get_repl_logs(update: Update, context):
 
 
 def helpCommand(update: Update, context):
-    update.message.reply_text('Help!  /checkPassword /findEmails  /findPhoneNumbers /get_release /get_uname /get_uptime /get_df /get_free /get_mpstat /get_w /get_auths /get_critical /get_ps /get_ss /get_apt_list /get_services  /get_repl_logs')
+    help_text = (
+        "/start - Начать взаимодействие с ботом\n"
+        "/help - Список команд и их описание\n"
+        "/verify_password - Проверка сложности пароля\n"
+        "/find_email - Найти и сохранить email адреса\n"
+        "/find_phone_numbers - Найти и сохранить телефонные номера\n"
+        "/get_release - Информация о версии системы\n"
+        "/get_uname - Информация о системе\n"
+        "/get_uptime - Время работы системы\n"
+        "/get_df - Состояние файловой системы\n"
+        "/get_free - Состояние оперативной памяти\n"
+        "/get_mpstat - Производительность системы\n"
+        "/get_w - Информация о работающих пользователях\n"
+        "/get_auths - Последние 10 входов в систему\n"
+        "/get_critical - Последние 5 критических событий\n"
+        "/get_ps - Информация о запущенных процессах\n"
+        "/get_ss - Информация об используемых портах\n"
+        "/get_apt_list - Информация об установленных пакетах\n"
+        "/get_services - Информация о запущенных сервисах\n"
+        "/get_repl_logs - Логи репликации\n"
+        "/get_emails - Получить сохраненные email адреса\n"
+        "/get_phone_numbers - Получить сохраненные номера телефонов\n"
+    )
+    update.message.reply_text(help_text)
 
 
 def get_release(update: Update, context):
@@ -382,11 +388,22 @@ def get_free(update: Update, context):
     return ConversationHandler.END
 
 def get_mpstat(update: Update, context):
-    update.message.reply_text(f'Сбор информации о производительности системы.')
-    result = ssh_connect(update, "mpstat")
-    if result:
+    try:
+        update.message.reply_text(f'Сбор информации о производительности системы.')
+        result = f'{ssh_connect(update, "uname -a")} \n {ssh_connect(update, "uname -r")} \n {ssh_connect(update, "lscpu")}'
         update.message.reply_text(result)
-    return ConversationHandler.END
+        if result:
+            chunk = ''
+            result_lines = result.split(' ')
+            for line in result_lines:
+                if len(chunk + line) <= 4000:  # Ограничение по размеру сообщения
+                    chunk += line 
+                else:
+                    update.message.reply_text(chunk)
+                    chunk = line
+        return ConversationHandler.END
+    except Exception as e:
+        update.message.reply_text(str(e))
 
 def get_w(update: Update, context):
     update.message.reply_text(f'Сбор информации о работающих в данной системе пользователях. ')
@@ -440,8 +457,17 @@ def get_ss(update: Update, context):
 
 def get_apt_list(update: Update, context):
     update.message.reply_text(f'Сбор информации об установленных пакетах. ')
-    
-    result = ssh_connect(update, "dpkg --get-selections")
+    psfp5 = update.message.text.split(' ')
+    if len(psfp5) > 1:
+        i = 1
+        command = ''
+        while i < len(psfp5):
+            command += f'{psfp5[i]} '
+            i += 1
+        result = ssh_connect(update, f'apt show {command}')
+        update.message.reply_text(str(result)[0:100])
+    else:
+        result = ssh_connect(update, "dpkg --get-selections")
     if result:
         result_lines = result.split('n')
         chunk = ''
@@ -452,13 +478,9 @@ def get_apt_list(update: Update, context):
                 update.message.reply_text(chunk)
                 chunk = line + 'n'
         # Отправляем оставшийся кусочек
-        if chunk:
-            update.message.reply_text(chunk)
-            
+        update.message.reply_text(chunk)
     return ConversationHandler.END
 
-
- 
 def FindServiceCommand(update: Update, context):
     update.message.reply_text('Название сервиса: ')
     return 'FindService'
@@ -489,16 +511,15 @@ def get_services(update: Update, context):
             
     return ConversationHandler.END
 
-
 def main():
     updater = Updater(TOKEN, use_context=True)
 
     dp = updater.dispatcher
 
     convHandlerFindPhoneNumbers = ConversationHandler(
-        entry_points=[CommandHandler('findPhoneNumbers', findPhoneNumbersCommand)],
+        entry_points=[CommandHandler('find_phone_number', findPhoneNumbersCommand)],
         states={
-            'findPhoneNumbers': [MessageHandler(Filters.text & ~Filters.command, findPhoneNumbers)],
+            'find_phone_number': [MessageHandler(Filters.text & ~Filters.command, findPhoneNumbers)],
             'confirm_save_number': [MessageHandler(Filters.text & ~Filters.command, confirm_save_number)]
         },
         fallbacks=[]
@@ -535,7 +556,7 @@ def main():
     dp.add_handler(convHandlerFindEmail)
     dp.add_handler(convHandlerVerifyPassword)
     dp.add_handler(convHandlerFindService)
-        
+
     dp.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
     dp.add_handler(CommandHandler("get_release", get_release))
     dp.add_handler(CommandHandler("get_uname", get_uname))
@@ -555,7 +576,6 @@ def main():
 
     dp.add_handler(CommandHandler("get_emails", get_emails))
     dp.add_handler(CommandHandler("get_phone_numbers", get_phone_numbers))
-
 
     updater.start_polling()
 

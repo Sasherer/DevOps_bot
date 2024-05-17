@@ -1,0 +1,193 @@
+- name: Cache update  
+  hosts: all
+  become: yes
+  tasks:
+    - name: Cache update
+      apt:
+        update_cache: yes
+
+- hosts: tg_bot  
+  become: yes
+  tasks:
+    - name: Clone repository Github from bot
+      git:
+        repo: https://github.com/Sasherer/DevOps_bot
+        dst: /opt/bot
+        force: yes
+
+    - name: Install Python requirements
+      pip:
+        requirements: /opt/tg-bot/requirements.txt
+
+    - name: Bot environment
+      ansible.builtin.copy:
+        content: |
+          TOKEN={{telegram.token}}
+          RM_HOST={{RM_HOST}}
+          RM_PORT={{RM_PORT}}
+          RM_USER={{RM_USER}}
+          RM_PASSWORD={{RM_PASSWORD}}
+          DB_USER={{DB_USER}}
+          DB_PASSWORD={{DB_PASSWORD}}
+          DB_HOST={{DB_HOST}}
+          DB_PORT={{DB_PORT}}
+          DB_DATABASE={{DB_DATABASE}}
+        dest: "/opt/bot/.env"
+
+    - name: Bot start
+      shell: 
+        cmd: python3 /opt/bot/bot.py
+
+- hosts: db
+  become: yes
+  tasks:
+    - name: Install PostgreSQL
+      apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+        state: present
+        update_cache: true
+      become: yes
+
+    - name: Find path to pg_hba.conf
+      command: psql -t -P format=unaligned -c 'show hba_file'
+      register: pg_hba_path
+
+    - name: Add content to pg_hba.conf
+      lineinfile:
+        path: "{{ pg_hba_path.stdout }}"
+        insertafter: EOF
+        state: present
+        create: yes
+        line: "{{ lookup('file', './pg_hba.conf') }}"
+      become: yes
+
+    - name: Create archive directory
+      ansible.builtin.file:
+        path: "{{ archive_dir }}"
+        state: directory
+        owner: "{{ DB_USER }}"
+        mode: 0750
+      become: yes
+
+    - name: Get path to postgresql.conf
+      command: su - postgres -c "psql -t -P format=unaligned -c 'show config_file'"
+      register: postgres_conf_path
+
+    - name: Setup postgresql.conf
+      ansible.builtin.blockinfile:
+        create: true
+        path: "{{ postgres_conf_path.stdout }}/postgresql.conf"
+        block: "{{ lookup('file', 'files/postgresql.conf.block') }}"
+      become: yes
+        
+    - name: Restart PostgreSQL  
+      service:
+        name: postgresql
+        state: restarted
+      become: yes
+
+    - name: Create PostgreSQL database
+      command: psql -U {{DB_USER}} -d {{DB_USER}} -c "CREATE DATABASE {{DB_DATABASE}}"
+      become: yes
+
+    - name: Create table Email
+      community.postgresql.postgresql_table:
+        table: email
+        db: "{{ DB_DATABASE }}"
+        columns:
+          - id serial primary key
+          - email varchar(30) not null
+      become: yes
+
+    - name: Create table PhoneNumbers  
+      community.postgresql.postgresql_table:
+        table: phonenumbers
+        db: "{{ DB_DATABASE }}"
+        columns:
+          - id serial primary key
+          - phone varchar(20) not null
+      become: yes
+
+    - name: Password for db_user
+      community.postgresql.postgresql_user:
+        name: "{{ DB_USER }}"
+        password: "{{ DB_PASSWORD }}"
+      become: yes
+
+    - name: Create db_repl_user
+      community.postgresql.postgresql_user:
+        name: "{{ DB_REPL_USER }}"
+        password: "{{ DB_REPL_PASSWORD }}"
+        role_attr_flags: REPLICATION,LOGIN
+      become: yes
+
+  become_user: postgres
+
+- hosts: db_repl
+  become: yes
+  tasks:
+    - name: Install PostgreSQL
+      apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+        state: present
+        update_cache: true
+      become: yes
+
+    - name: Get path to postgresql.conf
+      command: su - postgres -c "psql -t -P format=unaligned -c 'show config_file'"
+      register: postgres_conf_path
+
+    - name: Configuration postgresql.conf
+      ansible.builtin.blockinfile:
+        create: true
+        path: "{{ postgres_conf_path.stdout }}/postgresql.conf"
+        block: |
+          listen_addresses = 'localhost, {{ inventory_db_repl_host }}'
+          port = {{ DB_REPL_PORT }}
+      become: yes
+
+    - name: Stop PostgreSQL service
+      service:
+        name: postgresql
+        state: stopped
+      become: yes
+
+    - name: Get directory for backup
+      ansible.builtin.shell: "pg_lsclusters --json | jq '.[].pgdata' | awk '{gsub(/\"/, \"\", $1); print $1}'"
+      register: data_dir
+
+    - name: Clean up directory
+      ansible.builtin.file:
+        state: "{{ item }}"
+        path: "{{ data_dir.stdout }}"
+        owner: "{{ DB_USER }}"
+        group: postgres
+        mode: 0750
+      with_items:
+        - absent
+        - directory
+      become: yes
+      become_user: root
+
+    - name: Execute pg_basebackup
+      ansible.builtin.command:
+        cmd: |
+          pg_basebackup -v -R
+            -h {{ inventory.db.host }} -p {{ DB_PORT }}
+            -U {{ DB_REPL_USER }} -w -P
+            -D {{ data_dir.stdout }}
+      become: yes
+      environment:
+        PGPASSWORD: "{{ DB_REPL_PASSWORD }}"
+
+    - name: Start PostgreSQL service
+      service:
+        name: postgresql
+        state: started
+      become: yes
+
+  become_user: postgres

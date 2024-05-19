@@ -15,6 +15,9 @@ from psycopg2 import Error
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
 
+PATH_TO_LOGFILE = os.getenv('PATH_TO_LOGFILE')
+PATH_TO_TEMPFILE = os.getenv('PATH_TO_TEMPFILE')
+
 RM_HOST = os.getenv('RM_HOST')
 RM_PORT = os.getenv('RM_PORT')
 RM_USER = os.getenv('RM_USER')
@@ -484,7 +487,7 @@ def get_ss(update: Update, context):
 def get_apt_list(update: Update, context):
     update.message.reply_text('Привет! Хотите вывести информацию обо всех пакетах или по конкретному пакету? Введите "all" для всех пакетов или название конкретного пакета.')
     return CHOOSING
-def choose_option(update: Update, context: CallbackContext):
+def choose_option(update: Update, context:):
     user_choice = update.message.text.lower()
     if user_choice == 'all':
         result = ssh_connect(update, "dpkg --get-selections")

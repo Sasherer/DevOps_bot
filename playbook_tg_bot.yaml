@@ -1,5 +1,6 @@
 - hosts: all
   become: yes
+  gather_facts: yes
   tasks:
     - name: Cache update
       apt:
@@ -14,13 +15,17 @@
           - postgresql
           - postgresql-contrib
           - libpq-dev
-          - python3-psycopg2
         state: present
         update_cache: yes
 
 - hosts: db
   become: yes
   tasks:
+
+    - name: create new user
+      command: psql -c "ALTER ROLE postgres WITH PASSWORD 'postgres';"
+      become: yes
+      become_user: postgres 
 
     - name: Create database
       become: yes

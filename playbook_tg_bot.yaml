@@ -52,7 +52,7 @@
       community.postgresql.postgresql_user:
         name: "{{DB_REPL_USER}}"
         password: "{{DB_REPL_PASSWORD}}"
-        role_attr_flags: REPLICATION,LOGIN
+        role_attr_flags: REPLICATION
 
     - name: Find path to pg_hba.conf
       become_user: postgres
@@ -63,10 +63,11 @@
       become_user: postgres
       lineinfile:
         path: "{{ pg_hba_path.stdout }}"
-        insertafter: EOF
+        insertafter: '^# replication privilege.'
         state: present
         create: yes
         line: "{{ lookup('file', './pg_hba.conf') }}"
+
 
     - name: Create archive directory
       ansible.builtin.file:
@@ -92,70 +93,66 @@
         state: restarted
 
 
-- hosts: db_repl
+- hosts: db_repl_host
   become: yes
+
   tasks:
-    - name: Get path to postgresql.conf
-      command: su - postgres -c "psql -t -P format=unaligned -c 'show config_file'"
-      register: postgres_conf_path
-
-    - name: Configuration postgresql.conf
-      ansible.builtin.blockinfile:
-        path: "{{ postgres_conf_path.stdout }}"
+    - name: Set Database Configuration
+      blockinfile:
+        path: /etc/postgresql/14/main/postgresql.conf
+        owner: postgres
         block: |
-          listen_addresses = 'localhost, {{ inventory_db_repl_host }}'
+          listen_addresses = '*'
           port = {{ DB_REPL_PORT }}
-        create: yes
-
-    - name: Stop PostgreSQL service
-      ansible.builtin.service:
-        name: postgresql
-        state: stopped
-
-    - name: Get directory for backup
-      command: pg_lsclusters --json | jq '.[].pgdata' | awk '{gsub(/\"/, "", $1); print $1}'
-      register: data_dir
-
-    - name: Clean up directory
-      ansible.builtin.file:
-        state: "{{ item }}"
-        path: "{{ data_dir.stdout }}"
-        owner: "{{ DB_USER }}"
-        group: postgres
-        mode: "0750"
-      loop:
-        - absent
-        - directory
       become: yes
-      become_user: root
-
-    - name: Execute pg_basebackup
-      ansible.builtin.command:
-        cmd: >
-          pg_basebackup -v -R
-          -h {{ hostvars['db'].ansible_host }} -p {{ DB_PORT }}
-          -U {{ DB_REPL_USER }} -w -P
-          -D {{ data_dir.stdout }}
+    - name: Restart PostgreSQL
+      service:
+        name: postgresql
+        state: restarted
+      become: yes
+    - name: Deleting Databases
+      command: rm -rf /var/lib/postgresql/14/main/
+      become: yes
+      become_user: postgres
+    - name: Performing Replication
+      command: pg_basebackup -h {{ DB_HOST }} -D /var/lib/postgresql/14/main/ -p {{ DB_PORT }} -U {{ DB_REPL_USER }} -vP -w
+      become: yes
+      become_user: postgres
       environment:
         PGPASSWORD: "{{ DB_REPL_PASSWORD }}"
+    - name: Set privileges
+      command: chown -R postgres:postgres /var/lib/postgresql/
+      become: yes
+      become_user: postgres
 
-    - name: Start PostgreSQL service
-      ansible.builtin.service:
-        name: postgresql
-        state: started
 
 - hosts: bot
+  become: yes
   tasks:
+    - name: Creating directory for bot
+      file:
+        path: "home/bot"
+        state: directory
+
     - name: Git clone bot repo
       ansible.builtin.git:
-        repo: https://github.com/Sasherer/DevOps_bot.git
+        repo: "https://github.com/Sasherer/DevOps_bot.git"
+        dest: "home/bot"
         version: main
-        dest: "{{bot_directory}}"
-        clone: yes
+        force: true
+
+    - name: "Installing dependencies"
+      apt:
+        name:
+          - python3.10-dev
+          - libpq-dev
+          - git
+          - python3-pip
+        state: present
 
     - name: Install Python requirements
       pip:
-        requirements: /opt/bot/requirements.txt
+        requirements: home/bot/requirements.txt
 
     - name: Bot environment
       ansible.builtin.copy:
@@ -170,7 +167,7 @@
           DB_HOST={{DB_HOST}}
           DB_PORT={{DB_PORT}}
           DB_DATABASE={{DB_DATABASE}}
-        dest: "/opt/bot/.env"
+        dest: "home/bot/.env"
 
     - name: Bot start
       shell:

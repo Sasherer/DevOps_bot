@@ -160,7 +160,7 @@ def find_emailCommand(update: Update, context):
 
 def find_email(update: Update, context):
     user_input = update.message.text
-    emailRegex = re.compile(r'[\w\.-]+@[\w\.-]+')
+    emailRegex = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
     emailList = emailRegex.findall(user_input)
 
     if not emailList:
@@ -224,7 +224,7 @@ def findPhoneNumbersCommand(update: Update, context):
     return 'findPhoneNumbers'
 
 
-def findPhoneNumbers(update: Update, context: CallbackContext):
+def findPhoneNumbers(update: Update, context):
     user_input = update.message.text
 
     phoneNumRegex = re.compile(r'\+?\d{1}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{2}[-.\s]?\d{2}')
@@ -331,13 +331,26 @@ def get_phone_numbers(update: Update, command):
         update.message.reply_text("Ошибка подключения к базе данных")
 
 
-def get_repl_logs(update: Update, context):
-    cmd = "cat /var/log/postgresql/postgresql.log | grep repl | tail -n 15"
-    res = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if res.returncode != 0 or res.stderr.decode() != "":
-        update.message.reply_text("Не могу открыть файл с логами!")
-    else:
-        update.message.reply_text(res.stdout.decode().strip('\n'))
+def get_repl_logs (update: Update, context):
+    logging.info('Логи репликации')
+    update.message.reply_text("Поиск логов")
+   # result= ssh_connect(update, "cat /var/log/postgresql/postgresql-16-main.log | tail -n 15")
+    result= ssh_connect(update, 'cat /var/log/postgresql/postgresql-14-main.log | grep "replication"') 
+    if result:
+        result_lines = result.split('n')
+
+        chunk = ''
+        for line in result_lines:
+            if len(chunk + line) <= 4000:  # Ограничение по размеру сообщения
+                chunk += line + 'n'
+            else:
+                update.message.reply_text(chunk)
+                chunk = line + 'n'
+        # Отправляем оставшийся кусочек
+        if chunk:
+            update.message.reply_text(chunk)
+            
+    return ConversationHandler.END
 
 
 def helpCommand(update: Update, context):
@@ -473,7 +486,7 @@ def get_ss(update: Update, context):
 
 
 def get_apt_list(update: Update, context):
-update.message.reply_text('Привет! Хотите вывести информацию обо всех пакетах или по конкретному пакету? Введите "all" для всех пакетов или название конкретного пакета.')
+    update.message.reply_text('Привет! Хотите вывести информацию обо всех пакетах или по конкретному пакету? Введите "all" для всех пакетов или название конкретного пакета.')
     return CHOOSING
 def choose_option(update: Update, context: CallbackContext):
     user_choice = update.message.text.lower()
@@ -530,11 +543,11 @@ def main():
 
     dp = updater.dispatcher
 
-    conv_handler = ConversationHandler(
+    convHandlerFindPhoneNumbers = ConversationHandler(
         entry_points=[CommandHandler('find_phone_number', findPhoneNumbersCommand)],
         states={
-            FIND_PHONE_NUMBER: [MessageHandler(Filters.text & ~Filters.command, findPhoneNumbers)],
-            CONFIRM_SAVE_NUMBER: [MessageHandler(Filters.text & ~Filters.command, confirm_save_number)]
+            'find_phone_number': [MessageHandler(Filters.text & ~Filters.command, find_phone_number)],
+            'confirm_save_number': [MessageHandler(Filters.text & ~Filters.command, confirm_save_number)]
         },
         fallbacks=[]
     )

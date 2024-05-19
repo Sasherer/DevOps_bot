@@ -331,22 +331,26 @@ def get_phone_numbers(update: Update, command):
         update.message.reply_text("Ошибка подключения к базе данных")
 
 
-def get_repl_logs(update: Update, context):
-    connection = psycopg2.connect( host=DB_HOST, port=DB_PORT, database=DB_DATABASE, user=DB_USER, password=DB_PASSWORD )
-    cursor = connection.cursor()
-    
-    data = cursor.execute("SELECT pg_read_file(pg_current_logfile());")
-    data = cursor.fetchall()
-    data = str(data).replace('\\n', '\n').replace('\\t', '\t')[2:-1]
-    answer = 'Логи репликации:\n'
+def get_repl_logs (update: Update, context):
+    logging.info('Логи репликации')
+    update.message.reply_text("Поиск логов")
+   # result= ssh_connect(update, "cat /var/log/postgresql/postgresql-16-main.log | tail -n 15")
+    result= ssh_connect(update, 'cat /var/log/postgresql/postgresql-14-main.log | grep "replication"') 
+    if result:
+        result_lines = result.split('n')
 
-    for str1 in data.split('\n'):
-        if DB_REPL_USER in str1:
-            answer += str1 + '\n'
-    if len(answer) == 17:
-        answer = 'События репликации не обнаружены'
-    for x in range(0, len(answer), 4096):
-        update.message.reply_text(answer[x:x+4096])
+        chunk = ''
+        for line in result_lines:
+            if len(chunk + line) <= 4000:  # Ограничение по размеру сообщения
+                chunk += line + 'n'
+            else:
+                update.message.reply_text(chunk)
+                chunk = line + 'n'
+        # Отправляем оставшийся кусочек
+        if chunk:
+            update.message.reply_text(chunk)
+            
+    return ConversationHandler.END
 
 
 def helpCommand(update: Update, context):
@@ -482,29 +486,26 @@ def get_ss(update: Update, context):
 
 
 def get_apt_list(update: Update, context):
-    update.message.reply_text(f'Сбор информации об установленных пакетах. ')
-    psfp5 = update.message.text.split(' ')
-    if len(psfp5) > 1:
-        i = 1
-        command = ''
-        while i < len(psfp5):
-            command += f'{psfp5[i]} '
-            i += 1
-        result = ssh_connect(update, f'apt show {command}')
-        update.message.reply_text(str(result)[0:100])
-    else:
+update.message.reply_text('Привет! Хотите вывести информацию обо всех пакетах или по конкретному пакету? Введите "all" для всех пакетов или название конкретного пакета.')
+    return CHOOSING
+def choose_option(update: Update, context: CallbackContext):
+    user_choice = update.message.text.lower()
+    if user_choice == 'all':
         result = ssh_connect(update, "dpkg --get-selections")
-    if result:
-        result_lines = result.split('n')
-        chunk = ''
-        for line in result_lines:
-            if len(chunk + line) <= 4000:  # Ограничение по размеру сообщения
-                chunk += line + 'n'
-            else:
-                update.message.reply_text(chunk)
-                chunk = line + 'n'
-        # Отправляем оставшийся кусочек
-        update.message.reply_text(chunk)
+        if result:
+            result_lines = result.split('n')
+            chunk = ''
+            for line in result_lines:
+                if len(chunk + line) <= 4000:  # Ограничение по размеру сообщения
+                    chunk += line + 'n'
+                else:
+                    update.message.reply_text(chunk)
+                    chunk = line + 'n'
+            # Отправляем оставшийся кусочек
+            update.message.reply_text(chunk)
+    else:
+        result = ssh_connect(update, f'apt show {user_choice}')
+        update.message.reply_text(str(result)[0:100])
     return ConversationHandler.END
 
 def FindServiceCommand(update: Update, context):
@@ -551,6 +552,14 @@ def main():
         fallbacks=[]
     )
     
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+        states={
+            CHOOSING: [MessageHandler(Filters.text & ~Filters.command, choose_option)],
+        },
+        fallbacks=[CommandHandler('start', start)]
+    )
+
     convHandlerFindEmail = ConversationHandler(
         entry_points=[CommandHandler('find_email', find_emailCommand)],
         states={

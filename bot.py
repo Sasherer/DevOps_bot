@@ -487,7 +487,7 @@ def get_ss(update: Update, context):
 def get_apt_list(update: Update, context):
     update.message.reply_text('Привет! Хотите вывести информацию обо всех пакетах или по конкретному пакету? Введите "all" для всех пакетов или название конкретного пакета.')
     return CHOOSING
-def choose_option(update: Update, context: CallbackContext):
+def choose_option(update: Update, context:):
     user_choice = update.message.text.lower()
     if user_choice == 'all':
         result = ssh_connect(update, "dpkg --get-selections")

@@ -224,7 +224,7 @@ def findPhoneNumbersCommand(update: Update, context):
     return 'findPhoneNumbers'
 
 
-def findPhoneNumbers(update: Update, context):
+def findPhoneNumbers(update: Update, context: CallbackContext):
     user_input = update.message.text
 
     phoneNumRegex = re.compile(r'\+?\d{1}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{2}[-.\s]?\d{2}')
@@ -530,11 +530,11 @@ def main():
 
     dp = updater.dispatcher
 
-    convHandlerFindPhoneNumbers = ConversationHandler(
+    conv_handler = ConversationHandler(
         entry_points=[CommandHandler('find_phone_number', findPhoneNumbersCommand)],
         states={
-            'find_phone_number': [MessageHandler(Filters.text & ~Filters.command, findPhoneNumbers)],
-            'confirm_save_number': [MessageHandler(Filters.text & ~Filters.command, confirm_save_number)]
+            FIND_PHONE_NUMBER: [MessageHandler(Filters.text & ~Filters.command, findPhoneNumbers)],
+            CONFIRM_SAVE_NUMBER: [MessageHandler(Filters.text & ~Filters.command, confirm_save_number)]
         },
         fallbacks=[]
     )

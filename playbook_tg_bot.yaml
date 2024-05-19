@@ -131,13 +131,13 @@
   tasks:
     - name: Creating directory for bot
       file:
-        path: "home/bot"
+        path: "/home/bot"
         state: directory
 
     - name: Git clone bot repo
       ansible.builtin.git:
         repo: "https://github.com/Sasherer/DevOps_bot.git"
-        dest: "home/bot"
+        dest: "/home/bot"
         version: main
         force: true
 
@@ -152,12 +152,12 @@
 
     - name: Install Python requirements
       pip:
-        requirements: home/bot/requirements.txt
+        requirements: /home/bot/requirements.txt
 
     - name: Bot environment
       ansible.builtin.copy:
         content: |
-          TOKEN={{telegram.token}}
+          TOKEN={{TOKEN}}
           RM_HOST={{RM_HOST}}
           RM_PORT={{RM_PORT}}
           RM_USER={{RM_USER}}
@@ -167,8 +167,8 @@
           DB_HOST={{DB_HOST}}
           DB_PORT={{DB_PORT}}
           DB_DATABASE={{DB_DATABASE}}
-        dest: "home/bot/.env"
+        dest: "/home/bot/.env"
 
     - name: Bot start
       shell:
-        cmd: python3 /opt/bot/bot.py
+        cmd: python3 /home/bot/bot.py

@@ -334,7 +334,6 @@ def get_phone_numbers(update: Update, command):
 def get_repl_logs (update: Update, context):
     logging.info('Логи репликации')
     update.message.reply_text("Поиск логов")
-   # result= ssh_connect(update, "cat /var/log/postgresql/postgresql-16-main.log | tail -n 15")
     result= ssh_connect(update, 'cat /var/log/postgresql/postgresql-14-main.log | grep "replication"') 
     if result:
         result_lines = result.split('n')

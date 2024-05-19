@@ -331,26 +331,13 @@ def get_phone_numbers(update: Update, command):
         update.message.reply_text("Ошибка подключения к базе данных")
 
 
-def get_repl_logs (update: Update, context):
-    logging.info('Логи репликации')
-    update.message.reply_text("Поиск логов")
-   # result= ssh_connect(update, "cat /var/log/postgresql/postgresql-16-main.log | tail -n 15")
-    result= ssh_connect(update, 'cat /var/log/postgresql/postgresql-14-main.log | grep "replication"') 
-    if result:
-        result_lines = result.split('n')
-
-        chunk = ''
-        for line in result_lines:
-            if len(chunk + line) <= 4000:  # Ограничение по размеру сообщения
-                chunk += line + 'n'
-            else:
-                update.message.reply_text(chunk)
-                chunk = line + 'n'
-        # Отправляем оставшийся кусочек
-        if chunk:
-            update.message.reply_text(chunk)
-            
-    return ConversationHandler.END
+def get_repl_logs(update: Update, context):
+    cmd = "cat /var/log/postgresql/postgresql.log | grep repl | tail -n 15"
+    res = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if res.returncode != 0 or res.stderr.decode() != "":
+        update.message.reply_text("Не могу открыть файл с логами!")
+    else:
+        update.message.reply_text(res.stdout.decode().strip('\n'))
 
 
 def helpCommand(update: Update, context):

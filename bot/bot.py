@@ -22,7 +22,6 @@ RM_USER = os.getenv('RM_USER')
 RM_PASSWORD = os.getenv('RM_PASSWORD')
 
 DB_DATABASE = os.getenv('DB_DATABASE')
-
 DB_HOST = os.getenv('DB_HOST')
 DB_PORT = os.getenv('DB_PORT')
 DB_USER = os.getenv('DB_USER')

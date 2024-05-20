@@ -535,7 +535,7 @@ def main():
     convHandlerFindPhoneNumbers = ConversationHandler(
         entry_points=[CommandHandler('find_phone_numbers', findPhoneNumbersCommand)],
         states={
-            'find_phone_numbers': [MessageHandler(Filters.text & ~Filters.command, findPhoneNumbers)],
+            'find_phone_numbers': [MessageHandler(Filters.text & ~Filters.command, find_phone_numbers],
             'confirm_save_number': [MessageHandler(Filters.text & ~Filters.command, confirm_save_number)]
         },
         fallbacks=[]

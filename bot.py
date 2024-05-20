@@ -484,7 +484,7 @@ def get_ss(update: Update, context):
 
 def get_apt_list_Command(update: Update, context):
     update.message.reply_text('Привет! Хотите вывести информацию обо всех пакетах или по конкретному пакету? Введите "all" для всех пакетов или название конкретного пакета.')
-    return choose_option
+    return get_apt_list
 
 def get_apt_list(update: Update, context):
     user_choice = update.message.text.lower()
@@ -543,7 +543,7 @@ def main():
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('get_apt_list', get_apt_list_Command)],
         states={
-            'get_apt_list': [MessageHandler(Filters.text & ~Filters.command, choose_option)],
+            'get_apt_list': [MessageHandler(Filters.text & ~Filters.command, get_apt_list)],
         },
         fallbacks=[]
     )

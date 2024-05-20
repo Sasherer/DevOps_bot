@@ -219,10 +219,10 @@ def confirm_save_email(update: Update, context):
 def findPhoneNumbersCommand(update: Update, context):
     update.message.reply_text('Введите текст для поиска телефонных номеров: ')
 
-    return 'findPhoneNumbers'
+    return 'find_phone_numbers'
 
 
-def findPhoneNumbers(update: Update, context):
+def find_phone_numbers(update: Update, context):
     user_input = update.message.text
 
     phoneNumRegex = re.compile(r'\+?\d{1}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{2}[-.\s]?\d{2}')
@@ -238,10 +238,10 @@ def findPhoneNumbers(update: Update, context):
 
     phoneNumbers = ''
     for i, phone_number in enumerate(unique_phone_list, 1):
-        phoneNumbers += f'{i}. {phone_number}\n'
+        phoneNumbers += f'{i}. {phone_numbers}\n'
     
-    context.user_data['phone_list'] = unique_phone_list
     update.message.reply_text(phoneNumbers)
+    context.user_data['phone_list'] = unique_phone_list
     update.message.reply_text('Хотите сохранить найденные номера в БД?[Да|нет]: ')
     return 'confirm_save_number'
 
@@ -257,11 +257,11 @@ def confirm_save_number(update: Update, context):
                         with connection, cursor:
                             saved_numbers = 0
                             for phone_number in context.user_data['phone_list']:
-                                cursor.execute("SELECT phone_numbers FROM phone_numbers WHERE phone_numbers = %s;", (phone_number,))
+                                cursor.execute("SELECT phone_numbers FROM phone_numbers WHERE phone_numbers = %s;", (phone_numbers,))
                                 existing_number = cursor.fetchone()
                                 if existing_number is None:
                                     try:
-                                        cursor.execute("INSERT INTO phone_numbers (phone_numbers) VALUES (%s);", (phone_number,))
+                                        cursor.execute("INSERT INTO phone_numbers (phone_numbers) VALUES (%s);", (phone_numbers,))
                                         saved_numbers += 1
                                     except Exception as e:
                                         pass
@@ -483,27 +483,28 @@ def get_ss(update: Update, context):
     return ConversationHandler.END
 
 def get_apt_list_Command(update: Update, context):
-    update.message.reply_text('Привет! Хотите вывести информацию обо всех пакетах или по конкретному пакету? Введите "all" для всех пакетов или название конкретного пакета.')
-    return get_apt_list
+    update.message.reply_text('Привет Хотите вывести информацию обо всех пакетах или по конкретному пакету? Введите "all" для всех пакетов или название конкретного пакета.')
+    return 'get_apt_list'
 
 def get_apt_list(update: Update, context):
     user_choice = update.message.text.lower()
     if user_choice == 'all':
         result = ssh_connect(update, "dpkg --get-selections")
         if result:
-            result_lines = result.split('n')
+            result_lines = result.split('\n')
             chunk = ''
             for line in result_lines:
                 if len(chunk + line) <= 4000:  # Ограничение по размеру сообщения
-                    chunk += line + 'n'
+                    chunk += line + '\n'
                 else:
                     update.message.reply_text(chunk)
-                    chunk = line + 'n'
+                    chunk = line + '\n'
             # Отправляем оставшийся кусочек
             update.message.reply_text(chunk)
     else:
         result = ssh_connect(update, f'apt-cache showpkg {user_choice}')
-        update.message.reply_text(str(result)[0:100])
+        if result:
+            update.message.reply_text(str(result)[:100])
     return ConversationHandler.END
 
 
@@ -532,14 +533,14 @@ def main():
     dp = updater.dispatcher
 
     convHandlerFindPhoneNumbers = ConversationHandler(
-        entry_points=[CommandHandler('find_phone_number', findPhoneNumbersCommand)],
+        entry_points=[CommandHandler('find_phone_numbers', findPhoneNumbersCommand)],
         states={
-            'find_phone_number': [MessageHandler(Filters.text & ~Filters.command, findPhoneNumbers)],
+            'find_phone_numbers': [MessageHandler(Filters.text & ~Filters.command, findPhoneNumbers)],
             'confirm_save_number': [MessageHandler(Filters.text & ~Filters.command, confirm_save_number)]
         },
         fallbacks=[]
     )
-    
+        
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('get_apt_list', get_apt_list_Command)],
         states={

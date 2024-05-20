@@ -482,11 +482,11 @@ def get_ss(update: Update, context):
         update.message.reply_text(result)
     return ConversationHandler.END
 
+def get_apt_list_Command(update: Update, context):
+    update.message.reply_text('Привет! Хотите вывести информацию обо всех пакетах или по конкретному пакету? Введите "all" для всех пакетов или название конкретного пакета.')
+    return choose_option
 
 def get_apt_list(update: Update, context):
-    update.message.reply_text('Привет! Хотите вывести информацию обо всех пакетах или по конкретному пакету? Введите "all" для всех пакетов или название конкретного пакета.')
-    return CHOOSING
-def choose_option(update: Update, context):
     user_choice = update.message.text.lower()
     if user_choice == 'all':
         result = ssh_connect(update, "dpkg --get-selections")
@@ -506,16 +506,6 @@ def choose_option(update: Update, context):
         update.message.reply_text(str(result)[0:100])
     return ConversationHandler.END
 
-def FindServiceCommand(update: Update, context):
-    update.message.reply_text('Название сервиса: ')
-    return 'FindService'
-def FindService(update: Update, context):
-    
-    command =  update.message.text
-    result = ssh_connect(update, "dpkg -l | grep "+ command)
-    
-    update.message.reply_text(result)
-    return ConversationHandler.END
 
 def get_services(update: Update, context):
     update.message.reply_text('Сбор информации о запущенных процессах.')
@@ -551,11 +541,11 @@ def main():
     )
     
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
+        entry_points=[CommandHandler('get_apt_list', get_apt_list_Command)],
         states={
-            CHOOSING: [MessageHandler(Filters.text & ~Filters.command, choose_option)],
+            'get_apt_list': [MessageHandler(Filters.text & ~Filters.command, choose_option)],
         },
-        fallbacks=[CommandHandler('start', start)]
+        fallbacks=[]
     )
 
     convHandlerFindEmail = ConversationHandler(
@@ -575,13 +565,6 @@ def main():
         fallbacks=[]
     )
      
-    convHandlerFindService = ConversationHandler(
-        entry_points=[CommandHandler('FindService', FindServiceCommand)],
-        states={
-            'FindService': [MessageHandler(Filters.text & ~Filters.command, FindService)],
-        },
-        fallbacks=[]
-    )
 
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("help", helpCommand))

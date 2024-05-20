@@ -502,7 +502,7 @@ def get_apt_list(update: Update, context):
             # Отправляем оставшийся кусочек
             update.message.reply_text(chunk)
     else:
-        result = ssh_connect(update, f'apt show {user_choice}')
+        result = ssh_connect(update, f'apt-cache showpkg {user_choice}')
         update.message.reply_text(str(result)[0:100])
     return ConversationHandler.END
 

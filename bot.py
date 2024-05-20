@@ -15,8 +15,6 @@ from psycopg2 import Error
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
 
-PATH_TO_LOGFILE = os.getenv('PATH_TO_LOGFILE')
-PATH_TO_TEMPFILE = os.getenv('PATH_TO_TEMPFILE')
 
 RM_HOST = os.getenv('RM_HOST')
 RM_PORT = os.getenv('RM_PORT')
@@ -334,6 +332,7 @@ def get_phone_numbers(update: Update, command):
 def get_repl_logs (update: Update, context):
     logging.info('Логи репликации')
     update.message.reply_text("Поиск логов")
+   # result= ssh_connect(update, "cat /var/log/postgresql/postgresql-16-main.log | tail -n 15")
     result= ssh_connect(update, 'cat /var/log/postgresql/postgresql-14-main.log | grep "replication"') 
     if result:
         result_lines = result.split('n')
@@ -487,7 +486,7 @@ def get_ss(update: Update, context):
 def get_apt_list(update: Update, context):
     update.message.reply_text('Привет! Хотите вывести информацию обо всех пакетах или по конкретному пакету? Введите "all" для всех пакетов или название конкретного пакета.')
     return CHOOSING
-def choose_option(update: Update, context):
+def choose_option(update: Update, context: CallbackContext):
     user_choice = update.message.text.lower()
     if user_choice == 'all':
         result = ssh_connect(update, "dpkg --get-selections")
@@ -545,7 +544,7 @@ def main():
     convHandlerFindPhoneNumbers = ConversationHandler(
         entry_points=[CommandHandler('find_phone_number', findPhoneNumbersCommand)],
         states={
-            'find_phone_number': [MessageHandler(Filters.text & ~Filters.command, find_phone_number)],
+            'find_phone_number': [MessageHandler(Filters.text & ~Filters.command, findPhoneNumbers)],
             'confirm_save_number': [MessageHandler(Filters.text & ~Filters.command, confirm_save_number)]
         },
         fallbacks=[]

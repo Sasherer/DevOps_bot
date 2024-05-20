@@ -332,7 +332,6 @@ def get_phone_numbers(update: Update, command):
 def get_repl_logs (update: Update, context):
     logging.info('Логи репликации')
     update.message.reply_text("Поиск логов")
-   # result= ssh_connect(update, "cat /var/log/postgresql/postgresql-16-main.log | tail -n 15")
     result= ssh_connect(update, 'cat /var/log/postgresql/postgresql-14-main.log | grep "replication"') 
     if result:
         result_lines = result.split('n')
@@ -349,6 +348,7 @@ def get_repl_logs (update: Update, context):
             update.message.reply_text(chunk)
             
     return ConversationHandler.END
+
 
 
 def helpCommand(update: Update, context):
@@ -520,7 +520,7 @@ def FindService(update: Update, context):
 def get_services(update: Update, context):
     update.message.reply_text('Сбор информации о запущенных процессах.')
     
-    result = ssh_connect(update, "systemctl list-units --type=service --all")
+    result = ssh_connect(update, "systemctl list-units --type=service --state=running")
     if result:
         result_lines = result.split('n')
         chunk = ''

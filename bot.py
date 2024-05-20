@@ -224,23 +224,22 @@ def findPhoneNumbersCommand(update: Update, context):
 
 def find_phone_numbers(update: Update, context):
     user_input = update.message.text
-    phoneNumRegex = re.compile(r'\+?\d{1}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{2}[-.\s]?\d{2}')
+    phoneNumRegex = re.compile(r'\+?[78][- ]?(?:\(\d{3}\)|\d{3})[- ]?\d{3}[- ]?\d{2}[- ]?\d{2}')
     phoneNumberList = phoneNumRegex.findall(user_input)
 
     if not phoneNumberList:
         update.message.reply_text('Телефонные номера не найдены')
         return ConversationHandler.END
-    
-    unique_phone_numbers = set(phoneNumbersList)  # Используем множество для хранения уникальных номеров
-    unique_phone_list = list(unique_phone_numbers)  # Преобразуем множество обратно в список
 
+    unique_phone_numbers = set(phoneNumberList)
+    unique_phone_list = list(unique_phone_numbers)
+    
     phoneNumbers = ''
     for i, phone_numbers in enumerate(unique_phone_list, 1):
         phoneNumbers += f'{i}. {phone_numbers}\n'
-    
     update.message.reply_text(phoneNumbers)
     context.user_data['phone_list'] = unique_phone_list
-    update.message.reply_text('Хотите сохранить найденные номера в БД?[Да|нет]: ')
+    update.message.reply_text('Хотите сохранить найденные номера в БД?[да|нет]: ')
     return 'confirm_save_number'
 
 
@@ -249,19 +248,20 @@ def confirm_save_number(update: Update, context):
     if user_input == "да":
         if 'phone_list' in context.user_data and context.user_data['phone_list']:
             try:
-                connection, cursor = db_connect(update)
+                connection, cursor = db_connect(update)  # Предполагается, что db_connect() принимает параметр update
                 if connection is not None and cursor is not None:
                     try:
                         with connection, cursor:
                             saved_numbers = 0
                             for phone_number in context.user_data['phone_list']:
-                                cursor.execute("SELECT phone_numbers FROM phone_numbers WHERE phone_numbers = %s;", (phone_numbers,))
+                                cursor.execute("SELECT phone_numbers FROM phone_numbers WHERE phone_numbers = %s;", (phone_number,))
                                 existing_number = cursor.fetchone()
                                 if existing_number is None:
                                     try:
-                                        cursor.execute("INSERT INTO phone_numbers (phone_numbers) VALUES (%s);", (phone_numbers,))
+                                        cursor.execute("INSERT INTO phone_numbers (phone_numbers) VALUES (%s);", (phone_number,))
                                         saved_numbers += 1
                                     except Exception as e:
+                                        logging.error("Ошибка при вставке номера: %s", e)
                                         pass
                             connection.commit()
                             if saved_numbers > 0:
@@ -273,8 +273,8 @@ def confirm_save_number(update: Update, context):
                         logging.error("Ошибка при работе с PostgreSQL: %s", error)
                         update.message.reply_text(f"Ошибка при работе с PostgreSQL: {error}")
             except (Exception, Error) as error:
-                logging.error("Ошибка при работе с PostgreSQL: %s", error)
-                update.message.reply_text(f"Ошибка при работе с PostgreSQL: {error}")
+                logging.error("Ошибка при подключении к БД: %s", error)
+                update.message.reply_text(f"Ошибка при подключении к БД: {error}")
         else:
             update.message.reply_text('Номера телефонов не найдены.')
     else:

@@ -233,7 +233,7 @@ def find_phone_numbers(update: Update, context):
         update.message.reply_text('Телефонные номера не найдены')
         return ConversationHandler.END
     
-    unique_phone_numbers = set(phoneNumberList)  # Используем множество для хранения уникальных номеров
+    unique_phone_numbers = set(phoneNumbersList)  # Используем множество для хранения уникальных номеров
     unique_phone_list = list(unique_phone_numbers)  # Преобразуем множество обратно в список
 
     phoneNumbers = ''
@@ -487,8 +487,8 @@ def get_apt_list_Command(update: Update, context):
     return 'get_apt_list'
 
 def get_apt_list(update: Update, context):
-    user_choice = update.message.text.lower()
-    if user_choice == 'all':
+    user_input = update.message.text.lower()
+    if user_input == 'all':
         result = ssh_connect(update, "dpkg --get-selections")
         if result:
             result_lines = result.split('\n')
@@ -502,7 +502,7 @@ def get_apt_list(update: Update, context):
             # Отправляем оставшийся кусочек
             update.message.reply_text(chunk)
     else:
-        result = ssh_connect(update, f'apt-cache showpkg {user_choice}')
+        result = ssh_connect(update, f'apt-cache showpkg {user_input}')
         if result:
             update.message.reply_text(str(result)[:100])
     return ConversationHandler.END
@@ -541,7 +541,7 @@ def main():
         fallbacks=[]
     )
         
-    conv_handler = ConversationHandler(
+    convHandlerGetAptList = ConversationHandler(
         entry_points=[CommandHandler('get_apt_list', get_apt_list_Command)],
         states={
             'get_apt_list': [MessageHandler(Filters.text & ~Filters.command, get_apt_list)],
@@ -572,6 +572,7 @@ def main():
     dp.add_handler(convHandlerFindPhoneNumbers)
     dp.add_handler(convHandlerFindEmail)
     dp.add_handler(convHandlerVerifyPassword)
+    dp.add_handler(convHandlerGetAptList)
 
     dp.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
     dp.add_handler(CommandHandler("get_release", get_release))

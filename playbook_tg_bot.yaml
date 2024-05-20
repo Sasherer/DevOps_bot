@@ -43,14 +43,14 @@
           - id serial primary key
           - email varchar(30) not null
 
-    - name: Create table PhoneNumbers
+    - name: Create table phone_numbers
       become_user: postgres
       community.postgresql.postgresql_table:
         db: "{{DB_DATABASE}}"
-        name: phonenumbers
+        name: phone_numbers
         columns:
           - id serial primary key
-          - phone varchar(20) not null
+          - phone_numbers varchar(20) not null
 
     - name: Create db_repl_user
       become_user: postgres

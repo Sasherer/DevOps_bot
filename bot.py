@@ -224,9 +224,7 @@ def findPhoneNumbersCommand(update: Update, context):
 
 def find_phone_numbers(update: Update, context):
     user_input = update.message.text
-
     phoneNumRegex = re.compile(r'\+?\d{1}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{2}[-.\s]?\d{2}')
-
     phoneNumberList = phoneNumRegex.findall(user_input)
 
     if not phoneNumberList:
@@ -237,7 +235,7 @@ def find_phone_numbers(update: Update, context):
     unique_phone_list = list(unique_phone_numbers)  # Преобразуем множество обратно в список
 
     phoneNumbers = ''
-    for i, phone_number in enumerate(unique_phone_list, 1):
+    for i, phone_numbers in enumerate(unique_phone_list, 1):
         phoneNumbers += f'{i}. {phone_numbers}\n'
     
     update.message.reply_text(phoneNumbers)
